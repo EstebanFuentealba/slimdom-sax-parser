@@ -1,12 +1,15 @@
 import * as saxes from 'saxes';
 import { DEFAULT_OPTIONS, SlimdomSaxParserOptions } from './options';
 
-import createHandler from './createHandler';
+import createHandler, { TextParserHandler } from './createHandler';
 
 /**
  * Synchronously parse a string of XML to a Slimdom document.
  */
-export function sync(xml: string, options?: SlimdomSaxParserOptions) {
+export function sync(
+	xml: string,
+	options?: SlimdomSaxParserOptions & { textParser?: TextParserHandler }
+) {
 	// Set up the sax parser
 	const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
 	const parser = new saxes.SaxesParser(mergedOptions);

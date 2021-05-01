@@ -27,10 +27,15 @@ type Handler = {
 	document: Document;
 };
 
+export type TextParserHandler = (text: string) => string;
+
 /*
  * Create the required callbacks for populating a new document from sax event handlers
  */
-export default function createHandler(parser: SaxesParser, options: SaxesOptions): Handler {
+export default function createHandler(
+	parser: SaxesParser,
+	options: SaxesOptions & { textParser?: TextParserHandler }
+): Handler {
 	// A new XML DOM object that has the same API as the browser DOM implementation, but isomorphic and supports
 	// namespaces.
 	const document = new slimdom.Document();
@@ -40,6 +45,11 @@ export default function createHandler(parser: SaxesParser, options: SaxesOptions
 
 	// Helpers for other responsibilities
 	const namespaces = createNamespaceContext(options.additionalNamespaces || {});
+	const textParser: TextParserHandler =
+		options.textParser ||
+		function (text: string) {
+			return text;
+		};
 
 	const [track, trackClose, update] = options.position
 		? createPositionTracker(parser)
@@ -47,16 +57,16 @@ export default function createHandler(parser: SaxesParser, options: SaxesOptions
 
 	// Return a bunch of methods that can be applied directly to a saxes parser instance.
 	return {
-		onText: text => {
+		onText: (text) => {
 			if (contextNode === document) {
 				update();
 				return;
 			}
-			const textNode = track(document.createTextNode(text));
+			const textNode = track(document.createTextNode(textParser(text)));
 			contextNode.appendChild(textNode);
 		},
 
-		onOpenTag: element => {
+		onOpenTag: (element) => {
 			// More namespace declarations might be applicable
 			if (element.ns) {
 				namespaces.push(element.ns);
@@ -69,7 +79,7 @@ export default function createHandler(parser: SaxesParser, options: SaxesOptions
 
 			// Set attributes, taking the accumulated namespace information into account
 			Object.keys(element.attributes)
-				.map(name => element.attributes[name])
+				.map((name) => element.attributes[name])
 				.forEach((attr: string | SaxesAttributeNS) => {
 					if (typeof attr === 'string') {
 						// @TODO Find out why saxes sometimes uses strings instead of SaxesAttributeNs
@@ -107,17 +117,17 @@ export default function createHandler(parser: SaxesParser, options: SaxesOptions
 			namespaces.pop();
 		},
 
-		onProcessingInstruction: pi => {
+		onProcessingInstruction: (pi) => {
 			contextNode.appendChild(
 				track(document.createProcessingInstruction(pi.target, pi.body))
 			);
 		},
 
-		onComment: comment => {
+		onComment: (comment) => {
 			contextNode.appendChild(track(document.createComment(comment)));
 		},
 
-		onDocType: data => {
+		onDocType: (data) => {
 			// @ts-ignore TS6133
 			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 			const [qualifiedName, _publicSystem, publicId, systemId] = Array.from(
@@ -135,7 +145,7 @@ export default function createHandler(parser: SaxesParser, options: SaxesOptions
 			);
 		},
 
-		onCdata: string => {
+		onCdata: (string) => {
 			contextNode.appendChild(track(document.createCDATASection(string)));
 		},
 
